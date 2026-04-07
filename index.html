@@ -165,7 +165,7 @@
     //  MATTER.JS PHYSICS
     // ═══════════════════════════════════════════════════
     const { Engine, Bodies, Body, World, Composite, Events } = window.Matter;
-    const engine = Engine.create({ gravity: { x: 0, y: CFG.gravity } });
+    const engine = Engine.create({ gravity: { x: 0, y: CFG.gravity }, enableSleeping: false });
     const world = engine.world;
 
     let walls = [];
@@ -222,8 +222,8 @@
     });
 
     physicsReady = true;
-    rebuildWalls();
-    spawnObjects();
+    // Don't spawn yet — wait for render to start so objects don't fall offscreen
+    // rebuildWalls and spawnObjects are called in init after camera is ready
 
     // ═══════════════════════════════════════════════════
     //  SOUND ENGINE
@@ -501,6 +501,15 @@
       }
 
       Engine.update(engine, 16.67 * dt);
+
+      // Safety: teleport objects back if they escape bounds
+      for (const obj of objects) {
+        if (obj.position.y > H + 200 || obj.position.y < -200 ||
+            obj.position.x > W + 200 || obj.position.x < -200) {
+          Body.setPosition(obj, { x: W/2 + (Math.random()-0.5)*200, y: H * 0.3 });
+          Body.setVelocity(obj, { x: 0, y: 0 });
+        }
+      }
     }
 
     // ═══════════════════════════════════════════════════
@@ -805,7 +814,10 @@
         await initMP();
         console.log('MediaPipe ready. Starting camera...');
         await startCam();
-        console.log('Camera started. Rendering...');
+        console.log('Camera started. Spawning objects...');
+        rebuildWalls();
+        spawnObjects();
+        console.log('Rendering...');
         render();
       } catch (err) {
         console.error('Init failed:', err);
