@@ -79,7 +79,7 @@
     // Load Matter.js dynamically to avoid module/global scope issues
     await new Promise((resolve, reject) => {
       const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js';
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js';
       s.onload = resolve;
       s.onerror = () => reject(new Error('Failed to load Matter.js'));
       document.head.appendChild(s);
@@ -152,10 +152,11 @@
     const video = document.getElementById('video');
     let W, H;
 
+    let physicsReady = false;
     function resize() {
       W = canvas.width = innerWidth;
       H = canvas.height = innerHeight;
-      rebuildWalls();
+      if (physicsReady) rebuildWalls();
     }
     resize();
     addEventListener('resize', resize);
@@ -220,6 +221,7 @@
       }
     });
 
+    physicsReady = true;
     rebuildWalls();
     spawnObjects();
 
