@@ -173,7 +173,8 @@
     let objectMeta = []; // visual metadata per object
 
     function rebuildWalls() {
-      if (walls.length) Composite.remove(world, walls);
+      // Must remove individually — Composite.remove doesn't accept arrays
+      for (const w of walls) Composite.remove(world, w);
       const t = CFG.wallThickness;
       walls = [
         Bodies.rectangle(W/2, -t/2, W+t*2, t, { isStatic: true, restitution: CFG.bounce }),
@@ -181,12 +182,12 @@
         Bodies.rectangle(-t/2, H/2, t, H+t*2, { isStatic: true, restitution: CFG.bounce }),
         Bodies.rectangle(W+t/2, H/2, t, H+t*2, { isStatic: true, restitution: CFG.bounce }),
       ];
-      Composite.add(world, walls);
+      for (const w of walls) Composite.add(world, w);
     }
 
     function spawnObjects() {
-      // Remove old
-      if (objects.length) Composite.remove(world, objects);
+      // Remove old bodies individually from physics world
+      for (const o of objects) Composite.remove(world, o);
       objects = [];
       objectMeta = [];
       S.trails = [];
@@ -195,19 +196,21 @@
       for (let i = 0; i < CFG.numObjects; i++) {
         const meta = set.gen(i, CFG.numObjects);
         const x = W * 0.2 + Math.random() * W * 0.6;
-        const y = H * 0.2 + Math.random() * H * 0.4;
+        const y = H * 0.3 + Math.random() * H * 0.3;
 
         const body = Bodies.circle(x, y, meta.radius, {
           restitution: CFG.bounce,
           friction: CFG.friction,
-          frictionAir: 0.01,
+          frictionAir: 0.02,
           density: 0.002,
         });
+        Composite.add(world, body);
         objects.push(body);
         objectMeta.push(meta);
         S.trails.push([]);
       }
-      Composite.add(world, objects);
+      console.log('Spawned', objects.length, 'objects. First at:', objects[0]?.position);
+      console.log('Total bodies in world:', Composite.allBodies(world).length);
     }
 
     // Collision events for sound
@@ -500,7 +503,9 @@
         }
       }
 
-      Engine.update(engine, 16.67 * dt);
+      // Skip physics on first frame (dt is huge, would launch objects)
+      if (!firstFrame) Engine.update(engine, 16.67 * dt);
+      firstFrame = false;
 
       // Safety: teleport objects back if they escape bounds
       for (const obj of objects) {
@@ -516,6 +521,7 @@
     //  RENDER
     // ═══════════════════════════════════════════════════
     let time = 0;
+    let firstFrame = true;
 
     function render() {
       requestAnimationFrame(render);
@@ -649,9 +655,10 @@
         const x = obj.position.x, y = obj.position.y;
         const r = meta.radius;
 
+        ctx.save();
+        ctx.globalAlpha = 1;
+
         if (meta.emoji || meta.isLetter) {
-          // Emoji or letter
-          ctx.save();
           ctx.translate(x, y);
           ctx.rotate(obj.angle);
           ctx.font = `${meta.isLetter ? 'bold ' : ''}${r * 1.4}px ${meta.isLetter ? "'Segoe UI', sans-serif" : 'sans-serif'}`;
@@ -663,10 +670,8 @@
             ctx.shadowBlur = 15;
           }
           ctx.fillText(meta.emoji, 0, 0);
-          ctx.restore();
         } else {
-          // Colored ball with shading
-          ctx.save();
+          // Colored ball with gradient shading
           const grad = ctx.createRadialGradient(x - r*0.3, y - r*0.3, r*0.1, x, y, r);
           grad.addColorStop(0, lighten(meta.color, 40));
           grad.addColorStop(0.7, meta.color);
@@ -676,22 +681,26 @@
           ctx.fillStyle = grad;
           ctx.fill();
 
-          // Subtle shadow
+          // Subtle shadow below ball
+          ctx.globalAlpha = 0.15;
           ctx.beginPath();
           ctx.ellipse(x, y + r + 5, r * 0.7, 4, 0, 0, Math.PI * 2);
-          ctx.fillStyle = 'rgba(0,0,0,0.15)';
+          ctx.fillStyle = '#000';
           ctx.fill();
 
-          // Glow
+          // Glow around ball
+          ctx.globalAlpha = 0.15;
           ctx.globalCompositeOperation = 'lighter';
           const glow = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 1.8);
-          glow.addColorStop(0, 'transparent');
-          glow.addColorStop(0.5, meta.color + '10');
+          glow.addColorStop(0, meta.color);
           glow.addColorStop(1, 'transparent');
           ctx.fillStyle = glow;
-          ctx.fillRect(x - r*2, y - r*2, r*4, r*4);
-          ctx.restore();
+          ctx.beginPath();
+          ctx.arc(x, y, r * 1.8, 0, Math.PI * 2);
+          ctx.fill();
         }
+
+        ctx.restore(); // restores globalAlpha, compositeOperation, shadow, transform
       }
 
       // ── FIST / PALM INDICATOR ──
