@@ -75,12 +75,19 @@
     <button class="btn" id="btn-reset">RESET</button>
   </div>
 
-  <!-- Matter.js for physics -->
-  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js"></script>
-
   <script type="module">
-    import { FilesetResolver, HandLandmarker } from
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs';
+    // Load Matter.js dynamically to avoid module/global scope issues
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/matter-js@0.20.0/build/matter.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Failed to load Matter.js'));
+      document.head.appendChild(s);
+    });
+
+    const { FilesetResolver, HandLandmarker } = await import(
+      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.18/vision_bundle.mjs'
+    );
 
     // ═══════════════════════════════════════════════════
     //  CONFIG
@@ -156,7 +163,7 @@
     // ═══════════════════════════════════════════════════
     //  MATTER.JS PHYSICS
     // ═══════════════════════════════════════════════════
-    const { Engine, Bodies, Body, World, Composite, Events } = Matter;
+    const { Engine, Bodies, Body, World, Composite, Events } = window.Matter;
     const engine = Engine.create({ gravity: { x: 0, y: CFG.gravity } });
     const world = engine.world;
 
@@ -790,7 +797,28 @@
     // ═══════════════════════════════════════════════════
     //  INIT
     // ═══════════════════════════════════════════════════
-    (async () => { await initMP(); await startCam(); render(); })();
+    (async () => {
+      try {
+        console.log('Initializing MediaPipe...');
+        await initMP();
+        console.log('MediaPipe ready. Starting camera...');
+        await startCam();
+        console.log('Camera started. Rendering...');
+        render();
+      } catch (err) {
+        console.error('Init failed:', err);
+        const loadEl = document.getElementById('loading');
+        loadEl.textContent = '';
+        const errP = document.createElement('p');
+        errP.style.cssText = 'color:#f87171;font-size:14px;';
+        errP.textContent = 'Error: ' + err.message;
+        const hintP = document.createElement('p');
+        hintP.style.cssText = 'color:#888;font-size:12px;margin-top:8px;';
+        hintP.textContent = 'Check console. Make sure camera is allowed.';
+        loadEl.appendChild(errP);
+        loadEl.appendChild(hintP);
+      }
+    })();
   </script>
 </body>
 </html>
